@@ -5,6 +5,7 @@ import yfinance as yf
 from datetime import datetime
 import json
 import os
+import sys
 import io
 import re
 import pandas as pd
