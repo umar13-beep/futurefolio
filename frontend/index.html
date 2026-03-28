@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FutureFolio - AI Stock Predictor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .card {
+            border-radius: 15px;
+            border: none;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.8rem;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .stock-card {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+        }
+        .positive {
+            color: #10b981;
+        }
+        .negative {
+            color: #ef4444;
+        }
+
+        /* Mobile responsiveness */
+        @media (max-width: 576px) {
+            body {
+                min-height: auto;
+            }
+            .navbar-brand {
+                font-size: 1.35rem;
+            }
+            .display-4 {
+                font-size: 2rem;
+            }
+            .lead {
+                font-size: 1rem;
+            }
+            .container.my-5 {
+                margin-top: 1.5rem !important;
+                margin-bottom: 1.5rem !important;
+            }
+            .card {
+                border-radius: 12px;
+            }
+            .card.p-4 {
+                padding: 1rem !important;
+            }
+            .card.p-4.mb-3,
+            .card.p-4.mb-4 {
+                padding: 1rem !important;
+            }
+            .btn {
+                padding: 0.55rem 0.8rem;
+                font-size: 0.95rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-chart-line"></i> FutureFolio
+            </a>
+            <div class="navbar-nav ms-auto" id="authNav">
+                <button class="btn btn-primary me-2" onclick="loadStocks()">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+                <a class="btn btn-outline-primary me-2" id="dashboardBtn" href="dashboard.html" style="display:none;">
+                    <i class="fas fa-tachometer-alt"></i> Dashboard
+                </a>
+                <a class="btn btn-outline-success me-2" id="registerBtn" href="register.html">
+                    <i class="fas fa-user-plus"></i> Register
+                </a>
+                <a class="btn btn-outline-dark me-2" id="loginBtn" href="login.html">
+                    <i class="fas fa-sign-in-alt"></i> Login
+                </a>
+                <button class="btn btn-outline-danger" id="logoutBtn" style="display:none;" onclick="logoutFromIndex()">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container my-5">
+        <!-- Hero Section -->
+        <div class="text-center text-white mb-5">
+            <h1 class="display-4 fw-bold mb-3">AI-Powered Stock Predictions</h1>
+            <p class="lead">Get accurate stock forecasts with artificial intelligence</p>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="card p-4 mb-4">
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="stockSymbol" 
+                               placeholder="Enter stock symbol (e.g., RELIANCE.NS, TCS.NS)">
+                        <button class="btn btn-primary" onclick="searchStock()">
+                            <i class="fas fa-search"></i> Search
+                        </button>
+                    </div>
+                    <div class="mt-2">
+                        <small class="text-muted">Try: RELIANCE.NS, TCS.NS, INFY.NS, HDFCBANK.NS</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="d-grid">
+                        <button class="btn btn-success" onclick="getPrediction()">
+                            <i class="fas fa-brain"></i> Get AI Prediction
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stock Grid -->
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card p-4">
+                    <h4><i class="fas fa-chart-line"></i> Stock Market</h4>
+                    <div id="stocksContainer" class="mt-3">
+                        <!-- Stocks will load here -->
+                        <div class="text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Loading stocks...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <!-- Stock Details -->
+                <div class="card p-4 mb-3">
+                    <h5><i class="fas fa-info-circle"></i> Stock Details</h5>
+                    <div id="stockDetails">
+                        <p class="text-muted text-center">Search a stock to see details</p>
+                    </div>
+                </div>
+                
+                <!-- Prediction Result -->
+                <div class="card p-4">
+                    <h5><i class="fas fa-crystal-ball"></i> AI Prediction</h5>
+                    <div id="predictionResult">
+                        <p class="text-muted text-center">Get prediction for a stock</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Status -->
+        <div class="card p-4 mt-4">
+            <div class="row">
+                <div class="col-md-4">
+                    <h6><i class="fas fa-server"></i> Backend Status</h6>
+                    <div class="d-flex align-items-center">
+                        <div class="bg-success rounded-circle me-2" style="width: 10px; height: 10px;"></div>
+                        <span id="backendStatus">Checking...</span>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <h6><i class="fas fa-database"></i> Data Source</h6>
+                    <span>Yahoo Finance API</span>
+                </div>
+                <div class="col-md-4">
+                    <h6><i class="fas fa-robot"></i> AI Model</h6>
+                    <span>Active</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="text-center text-white py-4 mt-5">
+        <p>FutureFolio © 2026 | AI Stock Prediction System | College Project</p>
+    </footer>
+
+    <!-- JavaScript -->
+    <script>
+        // Load stocks on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStocks();
+            checkBackend();
+            updateAuthNav();
+        });
+
+        function updateAuthNav() {
+            const savedUser = localStorage.getItem('user');
+            const dashboardBtn = document.getElementById('dashboardBtn');
+            const registerBtn = document.getElementById('registerBtn');
+            const loginBtn = document.getElementById('loginBtn');
+            const logoutBtn = document.getElementById('logoutBtn');
+
+            if (!dashboardBtn || !registerBtn || !loginBtn || !logoutBtn) return;
+
+            const loggedIn = !!savedUser;
+            dashboardBtn.style.display = loggedIn ? 'inline-flex' : 'none';
+            logoutBtn.style.display = loggedIn ? 'inline-flex' : 'none';
+            registerBtn.style.display = loggedIn ? 'none' : 'inline-flex';
+            loginBtn.style.display = loggedIn ? 'none' : 'inline-flex';
+        }
+
+        function logoutFromIndex() {
+            localStorage.removeItem('user');
+            localStorage.removeItem('token');
+            localStorage.removeItem('login_time');
+            localStorage.removeItem('demo_mode');
+            window.location.href = 'login.html';
+        }
+
+        // Check backend status
+        async function checkBackend() {
+            try {
+                const response = await fetch('/api/status');
+                document.getElementById('backendStatus').innerHTML = 
+                    `<span class="text-success">Connected ✅</span>`;
+            } catch (error) {
+                document.getElementById('backendStatus').innerHTML = 
+                    `<span class="text-danger">Disconnected ❌</span>`;
+            }
+        }
+
+        // Load all stocks
+        async function loadStocks() {
+            const container = document.getElementById('stocksContainer');
+            container.innerHTML = `
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading stocks...</p>
+                </div>
+            `;
+
+            try {
+                const response = await fetch('/api/stocks');
+                const data = await response.json();
+                
+                let html = '<div class="row">';
+                data.stocks.forEach(stock => {
+                    html += `
+                        <div class="col-md-6 mb-3">
+                            <div class="stock-card" onclick="searchStock('${stock.symbol}')" 
+                                 style="cursor: pointer;">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6 class="mb-1">${stock.name}</h6>
+                                        <small class="text-muted">${stock.symbol}</small>
+                                    </div>
+                                    <div class="text-end">
+                                        <button class="btn btn-sm btn-outline-primary" 
+                                                onclick="event.stopPropagation(); searchStock('${stock.symbol}')">
+                                            <i class="fas fa-chart-line"></i> View
+                                        </button>
+                                    </div>
+                                </div>
+                                <small class="text-muted">${stock.sector}</small>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                container.innerHTML = html;
+            } catch (error) {
+                container.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle"></i> Error loading stocks
+                    </div>
+                `;
+            }
+        }
+
+        // Search for a stock
+        async function searchStock(symbol = null) {
+            const input = symbol || document.getElementById('stockSymbol').value;
+            if (!input) {
+                alert('Please enter a stock symbol');
+                return;
+            }
+
+            const details = document.getElementById('stockDetails');
+            details.innerHTML = `
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Fetching stock data...</p>
+                </div>
+            `;
+
+            try {
+                const response = await fetch(`/api/stock/${input}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    details.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle"></i> ${data.error}
+                        </div>
+                    `;
+                    return;
+                }
+
+                details.innerHTML = `
+                    <h6>${data.name}</h6>
+                    <table class="table table-sm">
+                        <tr><td>Symbol:</td><td><strong>${data.symbol}</strong></td></tr>
+                        <tr><td>Current Price:</td><td><strong>₹${data.current_price}</strong></td></tr>
+                        <tr><td>Today's Open:</td><td>₹${data.open}</td></tr>
+                        <tr><td>Day's High:</td><td>₹${data.high}</td></tr>
+                        <tr><td>Day's Low:</td><td>₹${data.low}</td></tr>
+                        <tr><td>Volume:</td><td>${data.volume.toLocaleString()}</td></tr>
+                        <tr><td>Last Updated:</td><td>${data.timestamp}</td></tr>
+                    </table>
+                    <div class="d-grid">
+                        <button class="btn btn-primary" onclick="getPrediction('${input}')">
+                            <i class="fas fa-brain"></i> Get AI Prediction
+                        </button>
+                    </div>
+                `;
+                
+                // Update search box
+                if (!symbol) {
+                    document.getElementById('stockSymbol').value = input;
+                }
+            } catch (error) {
+                details.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle"></i> Error fetching stock data
+                    </div>
+                `;
+            }
+        }
+
+        // Get AI prediction
+        async function getPrediction(symbol = null) {
+            const input = symbol || document.getElementById('stockSymbol').value;
+            if (!input) {
+                alert('Please enter a stock symbol first');
+                return;
+            }
+
+            const result = document.getElementById('predictionResult');
+            result.innerHTML = `
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">AI is analyzing...</p>
+                </div>
+            `;
+
+            try {
+                const response = await fetch(`/api/predict/${input}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    result.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle"></i> ${data.error}
+                        </div>
+                    `;
+                    return;
+                }
+
+                const trendIcon = data.trend === 'up' ? '📈' : '📉';
+                const trendClass = data.trend === 'up' ? 'positive' : 'negative';
+                
+                result.innerHTML = `
+                    <div class="text-center">
+                        <h6>${data.symbol}</h6>
+                        <div class="display-6 ${trendClass}">${trendIcon} ₹${data.predicted_price}</div>
+                        <p>Current: ₹${data.current_price}</p>
+                        <div class="alert ${data.trend === 'up' ? 'alert-success' : 'alert-warning'}">
+                            <strong>${data.trend.toUpperCase()} Trend</strong><br>
+                            Confidence: ${data.confidence}<br>
+                            ${data.message}
+                        </div>
+                        <small class="text-muted">AI Prediction Result</small>
+                    </div>
+                `;
+            } catch (error) {
+                result.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle"></i> Prediction failed
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

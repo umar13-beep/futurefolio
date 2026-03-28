@@ -1,0 +1,22 @@
+{
+  "Umarmirza369@gmail.com": [
+    {
+      "symbol": "RELIANCE.NS",
+      "name": "Reliance Industries",
+      "quantity": 10,
+      "buy_price": 1402.5,
+      "total_invested": 14025.0,
+      "date": "2026-01-22T18:06:42.462489",
+      "transaction_id": 2
+    },
+    {
+      "symbol": "TCS.NS",
+      "name": "Tata Consultancy Services",
+      "quantity": 10,
+      "buy_price": 3150.4,
+      "total_invested": 31504.0,
+      "date": "2026-01-22T18:06:53.930996",
+      "transaction_id": 3
+    }
+  ]
+}

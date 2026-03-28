@@ -1,0 +1,1542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - FutureFolio</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body.theme-dark {
+            background: #0b1220;
+            color: #e5e7eb;
+        }
+        body.theme-dark .card {
+            background: #111827;
+            color: #e5e7eb;
+            border-color: rgba(255, 255, 255, 0.08);
+        }
+        body.theme-dark .table {
+            color: #e5e7eb;
+        }
+        body.theme-dark .table thead th,
+        body.theme-dark .table td {
+            color: #e5e7eb;
+        }
+        body.theme-dark .text-muted {
+            color: rgba(229, 231, 235, 0.7) !important;
+        }
+        .sidebar {
+            background: linear-gradient(180deg, #1e3a8a 0%, #1e40af 100%);
+            color: white;
+            height: 100vh;
+            position: fixed;
+            width: 250px;
+            padding-top: 20px;
+        }
+        .main-content {
+            margin-left: 250px;
+            padding: 20px;
+        }
+        .nav-link {
+            color: #cbd5e1;
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin: 5px 15px;
+            transition: all 0.3s;
+        }
+        .nav-link:hover, .nav-link.active {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+        .nav-link i {
+            width: 20px;
+            margin-right: 10px;
+        }
+        .card {
+            border-radius: 12px;
+            border: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            transition: transform 0.3s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        .stat-card {
+            text-align: center;
+            padding: 25px 15px;
+        }
+        .stat-card .value {
+            font-size: 2.2rem;
+            font-weight: 700;
+        }
+        .positive {
+            color: #10b981;
+        }
+        .negative {
+            color: #ef4444;
+        }
+        .user-avatar {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: white;
+            font-weight: bold;
+        }
+        .table-hover tbody tr:hover {
+            background-color: rgba(30, 64, 175, 0.05);
+        }
+        .btn-primary {
+            background: linear-gradient(90deg, #1e40af, #3b82f6);
+            border: none;
+        }
+        .modal-header {
+            background: linear-gradient(90deg, #1e40af, #3b82f6);
+            color: white;
+        }
+        .logout-btn {
+            color: #f87171 !important;
+            border: 1px solid #f87171;
+            margin-top: auto;
+        }
+        .logout-btn:hover {
+            background: rgba(248, 113, 113, 0.1) !important;
+            color: #fff !important;
+        }
+        .sidebar-footer {
+            margin-top: auto;
+            padding: 20px 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Mobile responsiveness: convert fixed sidebar to stacked layout */
+        @media (max-width: 992px) {
+            .sidebar {
+                position: relative;
+                width: 100%;
+                height: auto;
+                padding-top: 10px;
+            }
+            .main-content {
+                margin-left: 0;
+                padding: 15px;
+            }
+            .stat-card {
+                padding: 18px 10px;
+            }
+            .stat-card .value {
+                font-size: 1.8rem;
+            }
+            .nav-link {
+                margin: 5px 10px;
+            }
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar d-flex flex-column">
+        <div class="text-center mb-4">
+            <div class="user-avatar mx-auto mb-2" id="userAvatar">U</div>
+            <h5 id="userName">Loading...</h5>
+            <small class="text-slate-300" id="userEmail">user@example.com</small>
+        </div>
+        
+        <nav class="nav flex-column flex-grow-1">
+            <a class="nav-link active" href="#">
+                <i class="fas fa-tachometer-alt"></i> Dashboard
+            </a>
+            <a class="nav-link" href="#" onclick="showPortfolio()">
+                <i class="fas fa-wallet"></i> Portfolio
+            </a>
+            <a class="nav-link" href="#" onclick="showMarket()">
+                <i class="fas fa-chart-line"></i> Market
+            </a>
+            <a class="nav-link" href="#" onclick="showPredictions()">
+                <i class="fas fa-brain"></i> Predictions
+            </a>
+            <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#wishlistModal" onclick="loadWishlist()">
+                <i class="fas fa-heart"></i> Wishlist
+            </a>
+            <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#chatbotModal" onclick="initChatbot()">
+                <i class="fas fa-comments"></i> Chatbot
+            </a>
+            <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#buyStockModal">
+                <i class="fas fa-shopping-cart"></i> Buy Stocks
+            </a>
+            <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#sellStockModal">
+                <i class="fas fa-money-bill-wave"></i> Sell Stocks
+            </a>
+            
+            <!-- Spacer to push logout to bottom -->
+            <div class="mt-auto"></div>
+            
+            <!-- Logout Section -->
+            <div class="sidebar-footer">
+                <a class="nav-link logout-btn" href="#" data-bs-toggle="modal" data-bs-target="#logoutModal">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
+            </div>
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3><i class="fas fa-tachometer-alt"></i> Investor Dashboard</h3>
+            <div class="d-flex align-items-center">
+                <span class="me-3">Balance: <strong id="userBalance">₹0</strong></span>
+                <div class="bg-success rounded-circle me-2" style="width: 10px; height: 10px;"></div>
+                <span id="backendStatus">Online</span>
+                <div class="form-check form-switch ms-4">
+                    <input class="form-check-input" type="checkbox" id="themeToggle">
+                    <label class="form-check-label text-muted" for="themeToggle">Dark</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <i class="fas fa-wallet fa-2x text-primary mb-3"></i>
+                    <div class="value" id="totalInvested">₹0</div>
+                    <small class="text-muted">Total Invested</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <i class="fas fa-chart-bar fa-2x text-success mb-3"></i>
+                    <div class="value" id="currentValue">₹0</div>
+                    <small class="text-muted">Current Value</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <i class="fas fa-rupee-sign fa-2x mb-3" id="profitIcon"></i>
+                    <div class="value" id="profitLoss">₹0</div>
+                    <small class="text-muted">Profit/Loss</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <i class="fas fa-percentage fa-2x text-info mb-3"></i>
+                    <div class="value" id="roiPercentage">0%</div>
+                    <small class="text-muted">ROI</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Portfolio Section -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-wallet"></i> Your Portfolio</h5>
+                <button class="btn btn-light btn-sm" onclick="loadPortfolio()">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Stock</th>
+                                <th>Quantity</th>
+                                <th>Buy Price</th>
+                                <th>Current Price</th>
+                                <th>Invested</th>
+                                <th>Current Value</th>
+                                <th>P/L</th>
+                                <th>P/L %</th>
+                            </tr>
+                        </thead>
+                        <tbody id="portfolioTable">
+                            <tr>
+                                <td colspan="8" class="text-center">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <p class="mt-2">Loading portfolio...</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Market Watch -->
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-chart-line"></i> Market Watch</h5>
+            </div>
+            <div class="card-body">
+                <div class="row" id="marketStocks">
+                    <!-- Stocks will load here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Market News -->
+        <div class="card mt-4">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-newspaper"></i> Market News</h5>
+                <button class="btn btn-light btn-sm" onclick="loadNews()">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="newsContainer" class="row g-3">
+                    <div class="col-12 text-center text-muted">
+                        <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+                        <div class="mt-2">Loading news...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <i class="fas fa-brain fa-3x text-primary mb-3"></i>
+                        <h5>AI Predictions</h5>
+                        <p class="text-muted">Get AI-powered stock predictions</p>
+                        <button class="btn btn-primary" onclick="showPredictions()">
+                            <i class="fas fa-crystal-ball"></i> View Predictions
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <i class="fas fa-file-pdf fa-3x text-danger mb-3"></i>
+                        <h5>Portfolio Report</h5>
+                        <p class="text-muted">Download detailed portfolio report</p>
+                        <button class="btn btn-danger" onclick="generateReport()">
+                            <i class="fas fa-download"></i> Download PDF
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Buy Stock Modal -->
+    <div class="modal fade" id="buyStockModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-shopping-cart"></i> Buy Stocks</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="buyForm">
+                        <div class="mb-3">
+                            <label class="form-label">Stock Symbol</label>
+                            <input type="text" class="form-control" id="buySymbol" 
+                                   placeholder="RELIANCE.NS" required>
+                            <small class="text-muted">Add .NS for NSE stocks</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Stock Name</label>
+                            <input type="text" class="form-control" id="buyName" 
+                                   placeholder="Reliance Industries" required>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Quantity</label>
+                                <input type="number" class="form-control" id="buyQuantity" 
+                                       min="1" value="10" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Price per Share (₹)</label>
+                                <input type="number" class="form-control" id="buyPrice" 
+                                       step="0.01" min="0" placeholder="2450.50" required>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="buyStock()">
+                        <i class="fas fa-check"></i> Buy Now
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sell Stock Modal -->
+    <div class="modal fade" id="sellStockModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-money-bill-wave"></i> Sell Stocks</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="sellPortfolioList">
+                        <!-- Portfolio items will load here -->
+                        <p class="text-center">Loading your holdings...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Prediction Modal -->
+    <div class="modal fade" id="predictionModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="fas fa-crystal-ball"></i> AI Stock Prediction</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Stock Symbol</label>
+                            <input type="text" class="form-control" id="predictSymbol" placeholder="RELIANCE.NS">
+                            <div class="form-text">Use NSE format such as <code>.NS</code>.</div>
+                            <button class="btn btn-primary w-100 mt-3" onclick="runPrediction()">
+                                <i class="fas fa-brain"></i> Predict
+                            </button>
+                            <div id="predictionStatus" class="mt-2 small text-muted"></div>
+                        </div>
+                        <div class="col-md-8">
+                            <div id="predictionResult" class="mb-3">
+                                <p class="text-muted mb-0 text-center">Enter a symbol and click Predict.</p>
+                            </div>
+                            <div class="bg-white p-2 rounded border">
+                                <canvas id="predictionChart" height="120"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Wishlist Modal -->
+    <div class="modal fade" id="wishlistModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="fas fa-heart"></i> Wishlist</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0"><i class="fas fa-list"></i> Saved Stocks</h6>
+                        <button class="btn btn-outline-primary btn-sm" onclick="loadWishlist()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Name</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="wishlistTableBody">
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted">
+                                        <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+                                        Loading...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chatbot Modal -->
+    <div class="modal fade" id="chatbotModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title"><i class="fas fa-comments"></i> Stock Assistant</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="bg-light border rounded p-3" style="height: 360px; overflow-y: auto;" id="chatMessages">
+                        <div class="text-muted text-center">Ask: "help", "predict RELIANCE.NS", or "price TCS.NS".</div>
+                    </div>
+
+                    <div class="d-flex gap-2 mt-3">
+                        <input type="text" class="form-control" id="chatInput" placeholder="Type your message..." />
+                        <button class="btn btn-primary" onclick="sendChatMessage()">
+                            <i class="fas fa-paper-plane"></i> Send
+                        </button>
+                    </div>
+                    <div class="form-text">Examples: <code>predict INFY.NS</code>, <code>price RELIANCE.NS</code></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logout Confirmation Modal -->
+    <div class="modal fade" id="logoutModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-sign-out-alt"></i> Confirm Logout
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <div class="mb-4">
+                        <i class="fas fa-door-open fa-4x text-danger mb-3"></i>
+                        <h4>Logout from FutureFolio?</h4>
+                        <p class="text-muted">You'll need to login again to access your portfolio</p>
+                    </div>
+                    <div class="user-info bg-light p-3 rounded mb-3">
+                        <div class="user-avatar mx-auto mb-2" id="logoutAvatar">U</div>
+                        <h6 id="logoutUserName">User Name</h6>
+                        <small class="text-muted" id="logoutUserEmail">user@example.com</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button type="button" class="btn btn-danger" onclick="performLogout()">
+                        <i class="fas fa-sign-out-alt"></i> Yes, Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global variables
+        let currentUser = null;
+        let userPortfolio = [];
+
+        // Load user data on page load
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Check if user is logged in
+            const userData = localStorage.getItem('user');
+            if (!userData) {
+                window.location.href = 'login.html';
+                return;
+            }
+            
+            currentUser = JSON.parse(userData);
+            updateUserInfo();
+            loadPortfolio();
+            loadMarketStocks();
+            loadNews();
+
+            // Theme toggle (persisted in localStorage)
+            const themeToggle = document.getElementById('themeToggle');
+            if (themeToggle) {
+                const savedTheme = localStorage.getItem('theme');
+                const darkMode = savedTheme === 'dark';
+                document.body.classList.toggle('theme-dark', darkMode);
+                themeToggle.checked = darkMode;
+
+                themeToggle.addEventListener('change', function() {
+                    const enabled = themeToggle.checked;
+                    document.body.classList.toggle('theme-dark', enabled);
+                    localStorage.setItem('theme', enabled ? 'dark' : 'light');
+                });
+            }
+            
+            // Set current price in buy modal
+            document.getElementById('buyPrice').addEventListener('focus', function() {
+                const symbol = document.getElementById('buySymbol').value;
+                if (symbol) {
+                    fetchCurrentPrice(symbol);
+                }
+            });
+            
+            // Update logout modal with user info
+            updateLogoutModal();
+        });
+
+        // Update user information
+        function updateUserInfo() {
+            if (!currentUser) return;
+            
+            // Update avatar with first letter of name
+            const avatar = document.getElementById('userAvatar');
+            const firstLetter = currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U';
+            avatar.textContent = firstLetter;
+            
+            // Update name and email
+            document.getElementById('userName').textContent = currentUser.name || 'User';
+            document.getElementById('userEmail').textContent = currentUser.email;
+            document.getElementById('userBalance').textContent = `₹${currentUser.balance?.toLocaleString() || '0'}`;
+        }
+
+        // Update logout modal with user info
+        function updateLogoutModal() {
+            if (!currentUser) return;
+            
+            const logoutAvatar = document.getElementById('logoutAvatar');
+            const logoutName = document.getElementById('logoutUserName');
+            const logoutEmail = document.getElementById('logoutUserEmail');
+            
+            const firstLetter = currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U';
+            logoutAvatar.textContent = firstLetter;
+            logoutName.textContent = currentUser.name || 'User';
+            logoutEmail.textContent = currentUser.email;
+        }
+
+        // Show logout confirmation modal
+        document.getElementById('logoutModal').addEventListener('show.bs.modal', function() {
+            updateLogoutModal();
+        });
+
+        // Perform logout
+        function performLogout() {
+            console.log('🚪 Logging out user...');
+            
+            // Get user info before clearing
+            const userName = currentUser?.name || 'User';
+            
+            // Clear all user data from localStorage
+            localStorage.removeItem('user');
+            localStorage.removeItem('token');
+            localStorage.removeItem('login_time');
+            localStorage.removeItem('demo_mode');
+            
+            // Show logout success message
+            const modal = bootstrap.Modal.getInstance(document.getElementById('logoutModal'));
+            modal.hide();
+            
+            // Show logout animation
+            document.body.innerHTML = `
+                <div class="d-flex flex-column justify-content-center align-items-center" 
+                     style="height: 100vh; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                    <div class="text-center">
+                        <i class="fas fa-check-circle fa-5x mb-4" style="color: #10b981;"></i>
+                        <h2 class="mb-3">Goodbye, ${userName}!</h2>
+                        <p class="mb-4">You have been successfully logged out</p>
+                        <div class="spinner-border text-light mb-4" role="status">
+                            <span class="visually-hidden">Redirecting...</span>
+                        </div>
+                        <p>Redirecting to login page...</p>
+                    </div>
+                </div>
+            `;
+            
+            // Redirect to login page after delay
+            setTimeout(() => {
+                window.location.href = 'login.html';
+            }, 2000);
+        }
+
+        // Load portfolio data
+        async function loadPortfolio() {
+            if (!currentUser) return;
+            
+            const tableBody = document.getElementById('portfolioTable');
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading portfolio...</p>
+                    </td>
+                </tr>
+            `;
+            
+            try {
+                const response = await fetch(`/api/portfolio/${currentUser.email}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    userPortfolio = data.portfolio;
+                    await displayPortfolio(data.portfolio, data.summary);
+                } else {
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td colspan="8" class="text-center text-muted">
+                                <i class="fas fa-exclamation-triangle"></i> ${data.error}
+                            </td>
+                        </tr>
+                    `;
+                }
+            } catch (error) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="text-center text-danger">
+                            <i class="fas fa-exclamation-triangle"></i> Connection error
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        // Display portfolio in table
+        async function displayPortfolio(portfolio, summary) {
+            const tableBody = document.getElementById('portfolioTable');
+            
+            if (!portfolio || portfolio.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="text-center text-muted">
+                            <i class="fas fa-wallet"></i> Your portfolio is empty
+                            <br>
+                            <small>Buy your first stock to get started!</small>
+                        </td>
+                    </tr>
+                `;
+                
+                // Reset summary
+                updateSummary({});
+                return;
+            }
+            
+            const totalInvested = portfolio.reduce((acc, item) => acc + (Number(item.total_invested) || 0), 0);
+
+            let html = '';
+            portfolio.forEach((item, index) => {
+                html += `
+                    <tr id="portfolioRow-${index}">
+                        <td>
+                            <strong>${item.symbol}</strong><br>
+                            <small class="text-muted">${item.name}</small>
+                        </td>
+                        <td>${item.quantity}</td>
+                        <td>₹${Number(item.buy_price).toFixed(2)}</td>
+                        <td id="portfolioCurrentPrice-${index}" class="text-muted">
+                            <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+                        </td>
+                        <td>₹${Number(item.total_invested).toFixed(2)}</td>
+                        <td id="portfolioCurrentValue-${index}" class="text-muted">
+                            <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+                        </td>
+                        <td id="portfolioPL-${index}" class="text-muted">
+                            <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+                        </td>
+                        <td id="portfolioPLPct-${index}" class="text-muted">
+                            <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tableBody.innerHTML = html;
+
+            const results = await Promise.all(portfolio.map(async (item, index) => {
+                const symbol = item.symbol;
+                const buyPrice = Number(item.buy_price) || 0;
+                const quantity = Number(item.quantity) || 0;
+                const invested = Number(item.total_invested) || 0;
+
+                let currentPrice = null;
+                try {
+                    const response = await fetch(`/api/stock/${encodeURIComponent(symbol)}`);
+                    const data = await response.json();
+                    if (data && data.current_price) {
+                        currentPrice = Number(data.current_price);
+                    }
+                } catch (err) {
+                    currentPrice = null;
+                }
+
+                // Fallback if API call fails: use a demo approximation
+                if (currentPrice === null || Number.isNaN(currentPrice)) {
+                    currentPrice = buyPrice * 1.05;
+                }
+
+                const currentValue = currentPrice * quantity;
+                const profitLoss = currentValue - invested;
+                const profitPercent = invested > 0 ? (profitLoss / invested * 100) : 0;
+
+                const profitClass = profitLoss >= 0 ? 'positive' : 'negative';
+                const profitIcon = profitLoss >= 0 ? '▲' : '▼';
+
+                document.getElementById(`portfolioCurrentPrice-${index}`).textContent = `₹${currentPrice.toFixed(2)}`;
+                document.getElementById(`portfolioCurrentValue-${index}`).textContent = `₹${currentValue.toFixed(2)}`;
+                document.getElementById(`portfolioPL-${index}`).className = profitClass;
+                document.getElementById(`portfolioPLPct-${index}`).className = profitClass;
+                document.getElementById(`portfolioPL-${index}`).textContent = `${profitIcon} ₹${Math.abs(profitLoss).toFixed(2)}`;
+                document.getElementById(`portfolioPLPct-${index}`).textContent = `${profitIcon} ${Math.abs(profitPercent).toFixed(2)}%`;
+
+                return { currentValue };
+            }));
+
+            const currentValueSum = results.reduce((acc, r) => acc + (r.currentValue || 0), 0);
+            const profitLossSum = currentValueSum - totalInvested;
+            const roi = totalInvested > 0 ? (profitLossSum / totalInvested * 100) : 0;
+
+            updateSummary({
+                total_invested: totalInvested,
+                current_value: currentValueSum,
+                profit_loss: profitLossSum,
+                profit_percentage: roi
+            });
+        }
+
+        // Update summary cards
+        function updateSummary(summary) {
+            const totalInvested = summary.total_invested || 0;
+            const currentValue = summary.current_value || 0;
+            const profitLoss = summary.profit_loss || 0;
+            const roi = summary.profit_percentage || 0;
+            
+            document.getElementById('totalInvested').textContent = `₹${totalInvested.toFixed(2)}`;
+            document.getElementById('currentValue').textContent = `₹${currentValue.toFixed(2)}`;
+            
+            const profitElement = document.getElementById('profitLoss');
+            const roiElement = document.getElementById('roiPercentage');
+            const profitIcon = document.getElementById('profitIcon');
+            
+            if (profitLoss >= 0) {
+                profitElement.className = 'value positive';
+                profitElement.textContent = `+₹${profitLoss.toFixed(2)}`;
+                roiElement.className = 'value positive';
+                roiElement.textContent = `+${roi.toFixed(2)}%`;
+                profitIcon.className = 'fas fa-rupee-sign fa-2x mb-3 positive';
+            } else {
+                profitElement.className = 'value negative';
+                profitElement.textContent = `-₹${Math.abs(profitLoss).toFixed(2)}`;
+                roiElement.className = 'value negative';
+                roiElement.textContent = `${roi.toFixed(2)}%`;
+                profitIcon.className = 'fas fa-rupee-sign fa-2x mb-3 negative';
+            }
+        }
+
+        // ------------------------------
+        // Wishlist
+        // ------------------------------
+        function escapeHtml(text) {
+            return String(text)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+        }
+
+        async function loadWishlist() {
+            if (!currentUser) return;
+
+            const tableBody = document.getElementById('wishlistTableBody');
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="3" class="text-center text-muted">
+                        <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+                        Loading wishlist...
+                    </td>
+                </tr>
+            `;
+
+            try {
+                const response = await fetch(`/api/wishlist/${encodeURIComponent(currentUser.email)}`);
+                const data = await response.json();
+
+                if (!data.success) {
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td colspan="3" class="text-center text-muted">
+                                <i class="fas fa-exclamation-triangle"></i> ${data.error || 'Failed to load wishlist'}
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                const wishlist = data.wishlist || [];
+                if (wishlist.length === 0) {
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td colspan="3" class="text-center text-muted">
+                                <i class="fas fa-heart"></i> Wishlist is empty
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tableBody.innerHTML = wishlist.map(item => `
+                    <tr>
+                        <td><strong>${escapeHtml(item.symbol)}</strong></td>
+                        <td>${escapeHtml(item.name || item.symbol)}</td>
+                        <td>
+                            <button class="btn btn-outline-danger btn-sm"
+                                    onclick="removeFromWishlist('${item.symbol}')">
+                                <i class="fas fa-trash"></i> Remove
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="3" class="text-center text-danger">
+                            <i class="fas fa-exclamation-triangle"></i> Connection error
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        async function addToWishlistFromSymbol(symbol) {
+            if (!currentUser) return;
+            const trimmed = (symbol || '').trim();
+            if (!trimmed) return;
+
+            try {
+                // Fetch name for better wishlist display
+                let name = trimmed;
+                try {
+                    const sResp = await fetch(`/api/stock/${encodeURIComponent(trimmed)}`);
+                    const sData = await sResp.json();
+                    if (sData && sData.name) name = sData.name;
+                } catch (e) {}
+
+                const response = await fetch('/api/wishlist/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: currentUser.email,
+                        symbol: trimmed,
+                        name: name
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    loadWishlist();
+                    alert('Added to wishlist!');
+                } else {
+                    alert('Failed to add to wishlist: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Connection error: ' + error.message);
+            }
+        }
+
+        async function removeFromWishlist(symbol) {
+            if (!currentUser) return;
+            const trimmed = (symbol || '').trim();
+            if (!trimmed) return;
+
+            try {
+                const response = await fetch('/api/wishlist/remove', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: currentUser.email,
+                        symbol: trimmed
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    loadWishlist();
+                } else {
+                    alert('Failed to remove: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Connection error: ' + error.message);
+            }
+        }
+
+        // ------------------------------
+        // Chatbot
+        // ------------------------------
+        function initChatbot() {
+            const chatMessages = document.getElementById('chatMessages');
+            const chatInput = document.getElementById('chatInput');
+            chatMessages.innerHTML = `
+                <div class="text-muted text-center">Stock Assistant ready. Type "help", "predict RELIANCE.NS", or "price TCS.NS".</div>
+            `;
+            if (chatInput) chatInput.value = '';
+            if (chatInput) chatInput.focus();
+        }
+
+        function appendChatMessage(text, isUser) {
+            const chatMessages = document.getElementById('chatMessages');
+            const bubble = document.createElement('div');
+            bubble.className = isUser ? 'text-end mt-2' : 'text-start mt-2';
+            bubble.innerHTML = `
+                <div class="d-inline-block rounded px-3 py-2 ${isUser ? 'bg-primary text-white' : 'bg-white text-dark border'}">
+                    ${escapeHtml(text)}
+                </div>
+            `;
+            chatMessages.appendChild(bubble);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        async function sendChatMessage() {
+            const chatInput = document.getElementById('chatInput');
+            const msg = (chatInput.value || '').trim();
+            if (!msg) return;
+
+            appendChatMessage(msg, true);
+            chatInput.value = '';
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: msg, email: currentUser?.email })
+                });
+
+                const data = await response.json();
+                appendChatMessage(data.reply || 'No reply received.', false);
+            } catch (error) {
+                appendChatMessage('Connection error. Please try again.', false);
+            }
+        }
+
+        // Load market stocks
+        async function loadMarketStocks() {
+            try {
+                const response = await fetch('/api/stocks');
+                const data = await response.json();
+                
+                const container = document.getElementById('marketStocks');
+                container.innerHTML = `
+                    <div class="text-center w-100">
+                        <span class="spinner-border text-primary" role="status"></span>
+                        <p class="mt-2 text-muted mb-0">Loading market...</p>
+                    </div>
+                `;
+
+                const topStocks = data.stocks.slice(0, 4);
+                const priced = await Promise.all(topStocks.map(async (stock) => {
+                    try {
+                        const sResp = await fetch(`/api/stock/${encodeURIComponent(stock.symbol)}`);
+                        const sData = await sResp.json();
+                        const price = Number(sData.current_price);
+                        const open = Number(sData.open);
+                        const change = open > 0 ? ((price - open) / open * 100) : 0;
+                        const changeClass = change >= 0 ? 'positive' : 'negative';
+                        const changeIcon = change >= 0 ? '▲' : '▼';
+                        return { ...stock, price, change, changeClass, changeIcon };
+                    } catch (e) {
+                        // Fallback if API call fails
+                        const price = Math.random() * 1000 + 1000;
+                        const change = (Math.random() - 0.5) * 5;
+                        const changeClass = change >= 0 ? 'positive' : 'negative';
+                        const changeIcon = change >= 0 ? '▲' : '▼';
+                        return { ...stock, price, change, changeClass, changeIcon };
+                    }
+                }));
+
+                const html = priced.map(stock => `
+                    <div class="col-md-3">
+                        <div class="card p-3">
+                            <h6 class="mb-1">${stock.symbol.replace('.NS', '')}</h6>
+                            <small class="text-muted">${stock.name}</small>
+                            <div class="mt-2">
+                                <div class="h5">₹${stock.price.toFixed(2)}</div>
+                                <div class="${stock.changeClass}">
+                                    ${stock.changeIcon} ${Math.abs(stock.change).toFixed(2)}%
+                                </div>
+                            </div>
+                            <button class="btn btn-sm btn-outline-primary mt-2"
+                                    onclick="quickBuy('${stock.symbol}', '${stock.name}')">
+                                <i class="fas fa-shopping-cart"></i> Quick Buy
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+
+                container.innerHTML = html;
+            } catch (error) {
+                console.error('Error loading market:', error);
+            }
+        }
+
+        // ------------------------------
+        // News
+        // ------------------------------
+        async function loadNews(stockSymbol = null) {
+            const newsContainer = document.getElementById('newsContainer');
+            if (!newsContainer) return;
+
+            newsContainer.innerHTML = `
+                <div class="col-12 text-center text-muted">
+                    <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+                    <div class="mt-2">Loading news...</div>
+                </div>
+            `;
+
+            try {
+                let url = '/api/news';
+                if (stockSymbol) {
+                    url += `?symbol=${encodeURIComponent(stockSymbol)}`;
+                }
+                const response = await fetch(url, { method: 'GET' });
+                const data = await response.json();
+
+                if (!data || !data.success) {
+                    newsContainer.innerHTML = `
+                        <div class="col-12 text-center text-danger">
+                            <i class="fas fa-exclamation-triangle"></i> ${data && data.error ? data.error : 'Failed to load news'}
+                        </div>
+                    `;
+                    return;
+                }
+
+                const articles = data.articles || [];
+                if (articles.length === 0) {
+                    newsContainer.innerHTML = `
+                        <div class="col-12 text-center text-muted">
+                            <i class="fas fa-info-circle"></i> No news available right now.
+                        </div>
+                    `;
+                    return;
+                }
+
+                newsContainer.innerHTML = articles.slice(0, 6).map(a => `
+                    <div class="col-md-6">
+                        <div class="p-3 border rounded h-100 bg-white">
+                            <div class="small text-muted mb-2">${escapeHtml(a.source || 'News')}</div>
+                            <div class="fw-semibold mb-2">${escapeHtml(a.title || '')}</div>
+                            <div class="small text-muted mb-2">${escapeHtml(a.publishedAt || '')}</div>
+                            <div class="small text-muted">${escapeHtml(a.description || '')}</div>
+                            ${
+                                a.url
+                                    ? `<a class="d-block mt-2 small text-decoration-none" href="${a.url}" target="_blank">Read more</a>`
+                                    : ''
+                            }
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                newsContainer.innerHTML = `
+                    <div class="col-12 text-center text-danger">
+                        <i class="fas fa-exclamation-triangle"></i> Connection error while loading news.
+                    </div>
+                `;
+            }
+        }
+
+        // Buy stock function
+        async function buyStock() {
+            const symbol = document.getElementById('buySymbol').value;
+            const name = document.getElementById('buyName').value;
+            const quantity = parseInt(document.getElementById('buyQuantity').value);
+            const price = parseFloat(document.getElementById('buyPrice').value);
+            
+            if (!symbol || !name || !quantity || !price) {
+                alert('Please fill all fields');
+                return;
+            }
+            
+            if (quantity <= 0) {
+                alert('Quantity must be positive');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/portfolio/add', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: currentUser.email,
+                        symbol: symbol,
+                        name: name,
+                        quantity: quantity,
+                        price: price
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Stock purchased successfully!');
+                    // Close modal
+                    bootstrap.Modal.getInstance(document.getElementById('buyStockModal')).hide();
+                    // Reset form
+                    document.getElementById('buyForm').reset();
+                    // Refresh portfolio
+                    loadPortfolio();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Connection error: ' + error.message);
+            }
+        }
+
+        // Quick buy from market
+        function quickBuy(symbol, name) {
+            document.getElementById('buySymbol').value = symbol;
+            document.getElementById('buyName').value = name;
+            
+            // Fetch current price
+            fetchCurrentPrice(symbol);
+            
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('buyStockModal'));
+            modal.show();
+        }
+
+        // Fetch current price for symbol
+        async function fetchCurrentPrice(symbol) {
+            try {
+                const response = await fetch(`/api/stock/${symbol}`);
+                const data = await response.json();
+                
+                if (data.current_price) {
+                    document.getElementById('buyPrice').value = data.current_price;
+                }
+            } catch (error) {
+                // Use mock price if API fails
+                const mockPrice = Math.random() * 1000 + 1000;
+                document.getElementById('buyPrice').value = mockPrice.toFixed(2);
+            }
+        }
+
+        // Show portfolio in sell modal
+        async function showSellModal() {
+            const container = document.getElementById('sellPortfolioList');
+            
+            if (!userPortfolio || userPortfolio.length === 0) {
+                container.innerHTML = '<p class="text-center text-muted">No stocks to sell</p>';
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="text-center text-muted">
+                    <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+                    Loading holdings...
+                </div>
+            `;
+
+            const priced = await Promise.all(userPortfolio.map(async (item, index) => {
+                const buyPrice = Number(item.buy_price) || 0;
+                const quantity = Number(item.quantity) || 0;
+
+                let currentPrice = null;
+                try {
+                    const sResp = await fetch(`/api/stock/${encodeURIComponent(item.symbol)}`);
+                    const sData = await sResp.json();
+                    if (sData && sData.current_price) {
+                        currentPrice = Number(sData.current_price);
+                    }
+                } catch (e) {
+                    currentPrice = null;
+                }
+
+                if (currentPrice === null || Number.isNaN(currentPrice)) {
+                    currentPrice = buyPrice * 1.05;
+                }
+
+                const profit = (currentPrice - buyPrice) * quantity;
+                const profitClass = profit >= 0 ? 'positive' : 'negative';
+
+                return { item, index, currentPrice, profitClass };
+            }));
+
+            container.innerHTML = `
+                <div class="list-group">
+                    ${priced.map(({ item, index, currentPrice, profitClass }) => `
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">${item.symbol}</h6>
+                                    <small class="text-muted">${item.name}</small>
+                                    <div>Qty: ${item.quantity} | Buy: ₹${Number(item.buy_price).toFixed(2)}</div>
+                                    <div class="${profitClass}">Current: ₹${currentPrice.toFixed(2)}</div>
+                                </div>
+                                <div>
+                                    <input type="number" class="form-control mb-2" 
+                                           id="sellQty${index}" min="1" max="${item.quantity}" 
+                                           value="${item.quantity}" style="width: 80px;">
+                                    <button class="btn btn-danger btn-sm" 
+                                            onclick="sellStock(${index}, ${item.transaction_id})">
+                                        <i class="fas fa-money-bill-wave"></i> Sell
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // Sell stock function
+        async function sellStock(index, transactionId) {
+            const item = userPortfolio[index];
+            const sellQty = parseInt(document.getElementById(`sellQty${index}`).value);
+            
+            if (sellQty <= 0 || sellQty > item.quantity) {
+                alert('Invalid quantity');
+                return;
+            }
+            
+            if (confirm(`Sell ${sellQty} shares of ${item.symbol}?`)) {
+                try {
+                    const response = await fetch('/api/portfolio/sell', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            email: currentUser.email,
+                            transaction_id: transactionId,
+                            quantity: sellQty
+                        })
+                    });
+
+                    const data = await response.json();
+                    if (data.success) {
+                        loadPortfolio();
+                        bootstrap.Modal.getInstance(document.getElementById('sellStockModal')).hide();
+                    } else {
+                        alert('Sell failed: ' + (data.error || 'Unknown error'));
+                    }
+                } catch (error) {
+                    alert('Connection error: ' + error.message);
+                }
+            }
+        }
+
+        // Prediction chart instance
+        let predictionChart = null;
+
+        function resetPredictionUI() {
+            const predictionResult = document.getElementById('predictionResult');
+            const predictionStatus = document.getElementById('predictionStatus');
+            predictionStatus.innerHTML = '';
+            predictionResult.innerHTML = `
+                <p class="text-muted mb-0 text-center">Enter a symbol and click Predict.</p>
+            `;
+
+            if (predictionChart) {
+                predictionChart.destroy();
+                predictionChart = null;
+            }
+        }
+
+        // Show predictions modal
+        function showPredictions() {
+            resetPredictionUI();
+
+            const modal = new bootstrap.Modal(document.getElementById('predictionModal'));
+            const symbolInput = document.getElementById('predictSymbol');
+
+            if (userPortfolio && userPortfolio.length > 0) {
+                symbolInput.value = userPortfolio[0].symbol;
+            } else {
+                symbolInput.value = 'RELIANCE.NS';
+            }
+
+            modal.show();
+        }
+
+        // Run prediction using backend
+        async function runPrediction() {
+            const symbol = document.getElementById('predictSymbol').value.trim();
+            const predictionStatus = document.getElementById('predictionStatus');
+            const predictionResult = document.getElementById('predictionResult');
+
+            if (!symbol) {
+                predictionStatus.innerHTML = '<span class="text-danger">Please enter a stock symbol.</span>';
+                return;
+            }
+
+            predictionStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Predicting...';
+            predictionResult.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"></div></div>';
+
+            try {
+                const response = await fetch(`/api/predict/${encodeURIComponent(symbol)}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    predictionStatus.innerHTML = `<span class="text-danger"><i class="fas fa-exclamation-triangle"></i> ${data.error}</span>`;
+                    predictionResult.innerHTML = '<p class="text-center text-muted mb-0">Prediction failed. Check the symbol and try again.</p>';
+                    return;
+                }
+
+                const trendClass = data.trend === 'up' ? 'positive' : 'negative';
+                const trendIcon = data.trend === 'up' ? '📈' : '📉';
+
+                // Fetch recommendation based on prediction
+                let recommendation = null;
+                try {
+                    const recResponse = await fetch(`/api/recommend/${encodeURIComponent(symbol)}`);
+                    recommendation = await recResponse.json();
+                } catch (recErr) {
+                    recommendation = null;
+                }
+
+                predictionStatus.innerHTML = `<span class="text-success"><i class="fas fa-check-circle"></i> Prediction ready</span>`;
+                predictionResult.innerHTML = `
+                    <div class="text-center">
+                        <h6 class="mb-2">${data.symbol}</h6>
+                        <div class="display-6 ${trendClass}">${trendIcon} ₹${data.predicted_price}</div>
+                        <p class="mb-2">Current: ₹${data.current_price}</p>
+                        <div class="alert ${data.trend === 'up' ? 'alert-success' : 'alert-warning'} mb-0">
+                            <strong>${data.trend.toUpperCase()} Trend</strong><br>
+                            Confidence: ${data.confidence}<br>
+                            <small>${data.message}</small>
+                        </div>
+                        ${
+                            recommendation && !recommendation.error
+                                ? `
+                                    <div class="alert alert-info mt-3 mb-0">
+                                        <strong>Recommendation:</strong> ${recommendation.action}<br>
+                                        Risk: ${recommendation.risk}<br>
+                                        <small>${recommendation.rationale}</small>
+                                    </div>
+                                    <button class="btn btn-outline-primary btn-sm mt-3" onclick="addToWishlistFromSymbol('${data.symbol}')">
+                                        <i class="fas fa-heart"></i> Add to Wishlist
+                                    </button>
+                                  `
+                                : ''
+                        }
+                    </div>
+                `;
+
+                // Render history + forecast chart (if available)
+                if (data.history && Array.isArray(data.history.dates) && Array.isArray(data.history.closes)) {
+                    const historyDates = data.history.dates;
+                    const historyCloses = data.history.closes;
+
+                    if (predictionChart) {
+                        predictionChart.destroy();
+                        predictionChart = null;
+                    }
+
+                    const labels = historyDates.concat(['Forecast']);
+                    const closeSeries = historyCloses.concat([null]);
+                    const forecastSeries = Array(historyCloses.length).fill(null).concat([data.predicted_price]);
+
+                    const ctx = document.getElementById('predictionChart').getContext('2d');
+                    predictionChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [
+                                {
+                                    label: 'Close',
+                                    data: closeSeries,
+                                    borderColor: '#1e40af',
+                                    backgroundColor: 'transparent',
+                                    tension: 0.35,
+                                    pointRadius: 2,
+                                },
+                                {
+                                    label: 'Forecast',
+                                    data: forecastSeries,
+                                    borderColor: '#f59e0b',
+                                    backgroundColor: 'transparent',
+                                    showLine: false,
+                                    pointRadius: 6,
+                                    pointBackgroundColor: '#f59e0b',
+                                    pointBorderColor: '#f59e0b',
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: true }
+                            },
+                            scales: {
+                                y: {
+                                    ticks: {
+                                        callback: function(value) {
+                                            return '₹' + value;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // Refresh market news for the selected symbol
+                loadNews(data.symbol).catch(() => {});
+            } catch (error) {
+                predictionStatus.innerHTML = `<span class="text-danger">Connection error: ${error.message}</span>`;
+                predictionResult.innerHTML = '<p class="text-center text-muted mb-0">Could not connect to backend. Start the server and try again.</p>';
+            } finally {
+                // If user quickly changes symbols, keep UI responsive
+            }
+        }
+
+        // Generate portfolio report
+        async function generateReport() {
+            if (!currentUser) return;
+
+            try {
+                const response = await fetch('/api/report/pdf', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentUser.email })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    alert('Failed to generate PDF report' + (err.error ? ': ' + err.error : ''));
+                    return;
+                }
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'FutureFolio_Report.pdf';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+            } catch (error) {
+                alert('Connection error: ' + error.message);
+            }
+        }
+
+        // Show market page
+        function showMarket() {
+            window.location.href = 'index.html';
+        }
+
+        // Show portfolio page
+        function showPortfolio() {
+            loadPortfolio();
+        }
+
+        // Update sell modal when opened
+        document.getElementById('sellStockModal').addEventListener('show.bs.modal', function() {
+            showSellModal();
+        });
+    </script>
+</body>
+</html>
