@@ -2,5 +2,19 @@ services:
   - type: web 
     name: futurefolio 
     runtime: python3 
-    buildCommand: pip install -r requirements.txt 
+Collecting flask==2.3.3 (from -r requirements.txt (line 1))
+  Using cached flask-2.3.3-py3-none-any.whl.metadata (3.6 kB)
+Collecting flask-cors==4.0.0 (from -r requirements.txt (line 2))
+  Downloading Flask_Cors-4.0.0-py2.py3-none-any.whl.metadata (5.4 kB)
+Collecting yfinance==0.2.33 (from -r requirements.txt (line 3))
+  Using cached yfinance-0.2.33-py2.py3-none-any.whl.metadata (11 kB)
+Collecting pandas==2.0.3 (from -r requirements.txt (line 4))
+  Using cached pandas-2.0.3.tar.gz (5.3 MB)
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'error'
     startCommand: gunicorn app:app 
+    envVars: 
+      - key: PYTHON_VERSION 
+        value: 3.11.8 
