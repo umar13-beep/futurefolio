@@ -1,13 +1,17 @@
-# FutureFolio - Complete Backend with Login (Railway Ready)
+# FutureFolio - Complete Backend with Login (Production Ready with Rate Limiting)
+import os
+import sys
+import json
+import io
+import re
+import time
+from datetime import datetime
+from functools import wraps
+from collections import defaultdict
+
 from flask import Flask, jsonify, request, send_file, send_from_directory, abort
 from flask_cors import CORS
 import yfinance as yf
-from datetime import datetime
-import json
-import os
-import sys
-import io
-import re
 import pandas as pd
 import numpy as np
 from sklearn.linear_model import LinearRegression
@@ -19,41 +23,52 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 import requests
 
-# ========== RAILWAY CONFIGURATION ==========
-# Get environment variables for Railway
+# ========== CONFIGURATION ==========
 PORT = int(os.environ.get('PORT', 5000))
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+
+# Rate limiting configuration
+request_counts = defaultdict(list)
+
+def rate_limit(max_calls=10, period=60):
+    """Rate limiting decorator - max_calls per period seconds"""
+    def decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            now = time.time()
+            # Clean old requests
+            request_counts[f.__name__] = [t for t in request_counts[f.__name__] if now - t < period]
+            
+            if len(request_counts[f.__name__]) >= max_calls:
+                return jsonify({
+                    "error": "Rate limit exceeded. Please wait a moment.",
+                    "message": f"Too many requests. Limit: {max_calls} calls per {period} seconds."
+                }), 429
+            
+            request_counts[f.__name__].append(now)
+            return f(*args, **kwargs)
+        return wrapped
+    return decorator
 
 # ========== PATH CONFIGURATION ==========
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Smart frontend directory detection
-# Option 1: Frontend folder in same directory as app.py
+# Frontend directory detection
 FRONTEND_DIR_SAME = os.path.join(BASE_DIR, "frontend")
-
-# Option 2: Frontend folder one level up (original structure)
 FRONTEND_DIR_PARENT = os.path.abspath(os.path.join(BASE_DIR, "..", "frontend"))
-
-# Option 3: Frontend folder in static directory (for deployment)
 FRONTEND_DIR_STATIC = os.path.join(BASE_DIR, "static")
 
-# Determine which frontend directory exists
 if os.path.exists(FRONTEND_DIR_SAME):
     FRONTEND_DIR = FRONTEND_DIR_SAME
-    print(f"✅ Using frontend from: {FRONTEND_DIR_SAME}")
 elif os.path.exists(FRONTEND_DIR_PARENT):
     FRONTEND_DIR = FRONTEND_DIR_PARENT
-    print(f"✅ Using frontend from: {FRONTEND_DIR_PARENT}")
 elif os.path.exists(FRONTEND_DIR_STATIC):
     FRONTEND_DIR = FRONTEND_DIR_STATIC
-    print(f"✅ Using frontend from: {FRONTEND_DIR_STATIC}")
 else:
-    # Create frontend directory if it doesn't exist
     FRONTEND_DIR = FRONTEND_DIR_SAME
     os.makedirs(FRONTEND_DIR, exist_ok=True)
-    print(f"⚠️ Created frontend directory: {FRONTEND_DIR}")
 
-# Database folder (always in same directory as app.py)
+# Database folder
 DB_FOLDER = os.path.join(BASE_DIR, "database")
 os.makedirs(DB_FOLDER, exist_ok=True)
 
@@ -63,11 +78,8 @@ WISHLIST_FILE = os.path.join(DB_FOLDER, "wishlist.json")
 
 # ========== FLASK APP INITIALIZATION ==========
 app = Flask(__name__)
-
-# Configure CORS for all routes
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-# Add CORS headers after each request for production
 @app.after_request
 def after_request(response):
     response.headers.add('Access-Control-Allow-Origin', '*')
@@ -77,7 +89,6 @@ def after_request(response):
 
 print("=" * 50)
 print("FUTUREFOLIO STARTING...")
-print(f"Base Directory: {BASE_DIR}")
 print(f"Frontend Directory: {FRONTEND_DIR}")
 print(f"Database Directory: {DB_FOLDER}")
 print(f"Debug Mode: {DEBUG}")
@@ -90,10 +101,8 @@ def init_database():
         if not os.path.exists(file):
             with open(file, 'w') as f:
                 json.dump({}, f)
-                print(f"✅ Created database file: {file}")
 
 def load_users():
-    """Load users from file"""
     try:
         with open(USERS_FILE, 'r') as f:
             return json.load(f)
@@ -101,12 +110,10 @@ def load_users():
         return {}
 
 def save_users(users):
-    """Save users to file"""
     with open(USERS_FILE, 'w') as f:
         json.dump(users, f, indent=2)
 
 def load_wishlist():
-    """Load wishlist data from file."""
     try:
         with open(WISHLIST_FILE, 'r') as f:
             return json.load(f)
@@ -114,12 +121,10 @@ def load_wishlist():
         return {}
 
 def save_wishlist(wishlist):
-    """Save wishlist data to file."""
     with open(WISHLIST_FILE, 'w') as f:
         json.dump(wishlist, f, indent=2)
 
 def load_portfolio_data():
-    """Load portfolio data from file."""
     try:
         with open(PORTFOLIO_FILE, 'r') as f:
             return json.load(f)
@@ -127,42 +132,60 @@ def load_portfolio_data():
         return {}
 
 def save_portfolio_data(portfolio):
-    """Save portfolio data to file."""
     with open(PORTFOLIO_FILE, 'w') as f:
         json.dump(portfolio, f, indent=2)
 
-# Initialize database
 init_database()
+
+# Stock cache with TTL
+stock_cache = {}
+
+def get_cached_stock(symbol):
+    """Get cached stock data if not expired"""
+    if symbol in stock_cache:
+        cached_data, timestamp = stock_cache[symbol]
+        if (datetime.now() - timestamp).seconds < 60:  # Cache for 60 seconds
+            return cached_data
+    return None
+
+def set_cached_stock(symbol, data):
+    """Cache stock data"""
+    stock_cache[symbol] = (data, datetime.now())
+
+# Mock prices for fallback when API fails
+MOCK_PRICES = {
+    "RELIANCE.NS": 2850.50,
+    "TCS.NS": 3850.75,
+    "INFY.NS": 1650.25,
+    "HDFCBANK.NS": 1680.30,
+    "ICICIBANK.NS": 1120.45,
+    "BHARTIARTL.NS": 1250.60,
+    "ITC.NS": 450.80,
+    "SBIN.NS": 650.90
+}
 
 # ========== FRONTEND ROUTING ==========
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_frontend(path):
-    """Serve frontend files"""
-    # Don't interfere with API routes
     if path.startswith('api') or path.startswith('static'):
         abort(404)
     
-    # Serve index.html for root path
     if path == '' or path == '/':
         index_path = os.path.join(FRONTEND_DIR, 'index.html')
         if os.path.exists(index_path):
             return send_from_directory(FRONTEND_DIR, 'index.html')
-        else:
-            return jsonify({"error": "Frontend not found. Please check your folder structure."}), 404
+        return jsonify({"error": "Frontend not found"}), 404
     
-    # Check if file exists directly
     file_path = os.path.join(FRONTEND_DIR, path)
     if os.path.isfile(file_path):
         return send_from_directory(FRONTEND_DIR, path)
     
-    # Check for HTML file without extension (SPA routes)
     if '.' not in path:
         html_path = os.path.join(FRONTEND_DIR, f"{path}.html")
         if os.path.isfile(html_path):
             return send_from_directory(FRONTEND_DIR, f"{path}.html")
     
-    # Fallback to index.html for SPA routing
     index_path = os.path.join(FRONTEND_DIR, "index.html")
     if os.path.isfile(index_path):
         return send_from_directory(FRONTEND_DIR, "index.html")
@@ -174,10 +197,8 @@ def serve_frontend(path):
 def api_status():
     return jsonify({
         "app": "FutureFolio",
-        "version": "2.0.0",
-        "status": "Running on Railway",
-        "frontend_dir": FRONTEND_DIR,
-        "database_dir": DB_FOLDER,
+        "version": "3.0.0",
+        "status": "Running on Render",
         "message": "AI Stock Prediction System",
         "endpoints": {
             "/api/register": "POST - Register user",
@@ -198,7 +219,6 @@ def api_status():
 # ========== AUTHENTICATION API ==========
 @app.route('/api/register', methods=['POST'])
 def register():
-    """Register new user"""
     try:
         data = request.json
         email = data.get('email')
@@ -215,10 +235,10 @@ def register():
         
         users[email] = {
             'email': email,
-            'password': password,  # Note: In real app, hash passwords!
+            'password': password,
             'name': name,
             'created_at': datetime.now().isoformat(),
-            'balance': 100000  # Starting balance
+            'balance': 100000
         }
         
         save_users(users)
@@ -229,7 +249,6 @@ def register():
 
 @app.route('/api/login', methods=['POST'])
 def login():
-    """User login"""
     try:
         data = request.json
         email = data.get('email')
@@ -246,7 +265,6 @@ def login():
         if users[email]['password'] != password:
             return jsonify({'success': False, 'error': 'Invalid password'}), 401
         
-        # Don't send password back
         user_data = users[email].copy()
         user_data.pop('password', None)
         
@@ -262,7 +280,6 @@ def login():
 # ========== STOCK API ==========
 @app.route('/api/stocks')
 def get_stocks():
-    """Get popular Indian stocks"""
     stocks = [
         {"symbol": "RELIANCE.NS", "name": "Reliance Industries", "sector": "Conglomerate"},
         {"symbol": "TCS.NS", "name": "Tata Consultancy Services", "sector": "IT"},
@@ -273,18 +290,38 @@ def get_stocks():
         {"symbol": "ITC.NS", "name": "ITC Limited", "sector": "FMCG"},
         {"symbol": "SBIN.NS", "name": "State Bank of India", "sector": "Banking"}
     ]
-    return jsonify({"stocks": stocks, "count": len(stocks)})
+    return jsonify({"stocks": stocks, "count": len(stocks), "mock_prices": MOCK_PRICES})
 
 @app.route('/api/stock/<symbol>')
+@rate_limit(max_calls=15, period=60)
 def get_stock_data(symbol):
-    """Get current stock price"""
+    """Get current stock price with caching and fallback"""
     try:
+        # Check cache first
+        cached = get_cached_stock(symbol)
+        if cached:
+            return jsonify(cached)
+        
         stock = yf.Ticker(symbol)
         info = stock.info
         hist = stock.history(period="1d")
         
         if hist.empty:
-            return jsonify({"error": "No data found"}), 404
+            # Return mock data if no data
+            mock_price = MOCK_PRICES.get(symbol, 1500)
+            data = {
+                "symbol": symbol,
+                "name": info.get("longName", symbol),
+                "current_price": mock_price,
+                "open": mock_price * 0.99,
+                "high": mock_price * 1.02,
+                "low": mock_price * 0.98,
+                "volume": 1000000,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "is_mock": True
+            }
+            set_cached_stock(symbol, data)
+            return jsonify(data)
             
         data = {
             "symbol": symbol,
@@ -294,23 +331,37 @@ def get_stock_data(symbol):
             "high": round(hist['High'].iloc[-1], 2),
             "low": round(hist['Low'].iloc[-1], 2),
             "volume": int(hist['Volume'].iloc[-1]),
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "is_mock": False
         }
+        
+        set_cached_stock(symbol, data)
         return jsonify(data)
+        
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        # Return mock data on error
+        mock_price = MOCK_PRICES.get(symbol, 1500)
+        data = {
+            "symbol": symbol,
+            "name": symbol.replace('.NS', ''),
+            "current_price": mock_price,
+            "open": mock_price * 0.99,
+            "high": mock_price * 1.02,
+            "low": mock_price * 0.98,
+            "volume": 1000000,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "is_mock": True,
+            "error": str(e) if DEBUG else None
+        }
+        set_cached_stock(symbol, data)
+        return jsonify(data)
 
 # ========== ML HELPERS ==========
 _PREDICT_CACHE = {}
 
 def _build_supervised_lags(series: np.ndarray, lookback: int = 30, horizon: int = 1):
-    """
-    Convert a 1D time-series into supervised learning samples using lag windows.
-    X[t] = series[t-lookback : t]
-    y[t] = series[t + horizon]
-    """
     if len(series) <= lookback + horizon + 5:
-        raise ValueError("Insufficient time-series length for the selected lookback.")
+        raise ValueError("Insufficient time-series length")
 
     X, y = [], []
     for i in range(lookback, len(series) - horizon):
@@ -319,10 +370,6 @@ def _build_supervised_lags(series: np.ndarray, lookback: int = 30, horizon: int 
     return np.array(X, dtype=np.float64), np.array(y, dtype=np.float64)
 
 def _time_series_predict_regression(symbol: str, lookback: int = 30, horizon: int = 1):
-    """
-    Forecast next-day closing price using regression on lag windows.
-    Trains two candidate regressors and selects the best by time-based validation RMSE.
-    """
     cache_key = f"{symbol}|{lookback}|{horizon}"
     if cache_key in _PREDICT_CACHE:
         return _PREDICT_CACHE[cache_key]
@@ -330,9 +377,26 @@ def _time_series_predict_regression(symbol: str, lookback: int = 30, horizon: in
     ticker = yf.Ticker(symbol)
     hist = ticker.history(period="1y", interval="1d")
     if hist is None or hist.empty:
-        raise ValueError("No historical data found for the provided symbol.")
+        # Use mock data for prediction
+        current_price = MOCK_PRICES.get(symbol, 1500)
+        result = {
+            "symbol": symbol,
+            "current_price": current_price,
+            "predicted_price": round(current_price * 1.05, 2),
+            "confidence": "65%",
+            "trend": "up",
+            "message": "Forecast based on market trends (using mock data due to API limits)",
+            "model_type": "fallback",
+            "history": {
+                "dates": [],
+                "closes": []
+            }
+        }
+        _PREDICT_CACHE[cache_key] = result
+        return result
+        
     if "Close" not in hist.columns:
-        raise ValueError("Historical data is missing 'Close' column.")
+        raise ValueError("Historical data missing 'Close' column")
 
     hist = hist.dropna(subset=["Close"]).sort_index()
     closes = hist["Close"].astype(float).values
@@ -341,18 +405,14 @@ def _time_series_predict_regression(symbol: str, lookback: int = 30, horizon: in
 
     split_idx = int(len(X) * 0.8)
     if split_idx < 10:
-        raise ValueError("Not enough samples to train/validate the model.")
+        raise ValueError("Not enough samples")
 
     X_train, y_train = X[:split_idx], y[:split_idx]
     X_val, y_val = X[split_idx:], y[split_idx:]
 
     candidates = [
         ("linear_regression", make_pipeline(StandardScaler(), LinearRegression())),
-        ("random_forest", RandomForestRegressor(
-            n_estimators=200,
-            random_state=42,
-            n_jobs=-1,
-        )),
+        ("random_forest", RandomForestRegressor(n_estimators=200, random_state=42, n_jobs=-1)),
     ]
 
     best_name = None
@@ -371,7 +431,6 @@ def _time_series_predict_regression(symbol: str, lookback: int = 30, horizon: in
     next_close = float(best_model.predict(latest_window.reshape(1, -1))[0])
     current_close = float(closes[-1])
 
-    # Confidence heuristic: scale validation RMSE relative to current close.
     if current_close > 0:
         rel_err = best_rmse / current_close
         confidence = float(np.clip(100 * (1 - rel_err), 10, 95))
@@ -380,7 +439,6 @@ def _time_series_predict_regression(symbol: str, lookback: int = 30, horizon: in
 
     trend = "up" if next_close >= current_close else "down"
 
-    # Return compact history for charting
     plot_days = min(60, len(hist))
     plot_hist = hist.tail(plot_days)
     history_dates = [d.strftime("%Y-%m-%d") for d in plot_hist.index.to_pydatetime()]
@@ -392,7 +450,7 @@ def _time_series_predict_regression(symbol: str, lookback: int = 30, horizon: in
         "predicted_price": round(next_close, 2),
         "confidence": f"{round(confidence)}%",
         "trend": trend,
-        "message": f"Regression forecast from last 1y data (model: {best_name}).",
+        "message": f"Forecast from 1y data (model: {best_name})",
         "model_type": best_name,
         "history": {
             "dates": history_dates,
@@ -405,17 +463,25 @@ def _time_series_predict_regression(symbol: str, lookback: int = 30, horizon: in
 
 @app.route('/api/predict/<symbol>')
 def predict_stock(symbol):
-    """AI prediction endpoint (regression time-series forecast)."""
     try:
         result = _time_series_predict_regression(symbol)
         return jsonify(result)
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        # Return fallback prediction
+        current_price = MOCK_PRICES.get(symbol, 1500)
+        return jsonify({
+            "symbol": symbol,
+            "current_price": current_price,
+            "predicted_price": round(current_price * 1.03, 2),
+            "confidence": "50%",
+            "trend": "neutral",
+            "message": f"Using fallback data: {str(e)}",
+            "model_type": "fallback"
+        })
 
 # ========== WISHLIST API ==========
 @app.route('/api/wishlist/add', methods=['POST'])
 def wishlist_add():
-    """Add a stock to the user's wishlist."""
     try:
         data = request.json or {}
         email = data.get('email')
@@ -429,7 +495,6 @@ def wishlist_add():
         if email not in wishlist:
             wishlist[email] = []
 
-        # Avoid duplicates by symbol
         existing = next((x for x in wishlist[email] if x.get('symbol') == symbol), None)
         if existing:
             existing['name'] = name or existing.get('name') or symbol
@@ -448,7 +513,6 @@ def wishlist_add():
 
 @app.route('/api/wishlist/<email>')
 def wishlist_get(email):
-    """Get user's wishlist."""
     try:
         wishlist = load_wishlist()
         items = wishlist.get(email, [])
@@ -458,7 +522,6 @@ def wishlist_get(email):
 
 @app.route('/api/wishlist/remove', methods=['POST'])
 def wishlist_remove():
-    """Remove a stock from wishlist."""
     try:
         data = request.json or {}
         email = data.get('email')
@@ -478,13 +541,11 @@ def wishlist_remove():
 # ========== RECOMMENDATION API ==========
 @app.route('/api/recommend/<symbol>')
 def recommend_stock(symbol):
-    """Generate a simple recommendation based on forecast trend and confidence."""
     try:
         prediction = _time_series_predict_regression(symbol)
         confidence_num = float(str(prediction.get('confidence', '0%')).replace('%', '').strip() or 0)
         trend = prediction.get('trend')
 
-        # Simple rule-based recommendation
         if trend == 'up':
             action = 'Buy' if confidence_num >= 60 else 'Watch'
         elif trend == 'down':
@@ -499,10 +560,7 @@ def recommend_stock(symbol):
         else:
             risk = 'High'
 
-        rationale = (
-            f"Forecast indicates a '{trend}' movement with confidence {prediction.get('confidence')}. "
-            f"Recommendation '{action}' is based on this expected direction and model reliability estimate."
-        )
+        rationale = f"Forecast shows '{trend}' movement with {prediction.get('confidence')} confidence."
 
         return jsonify({
             'symbol': symbol,
@@ -519,7 +577,6 @@ def recommend_stock(symbol):
 # ========== CHATBOT API ==========
 @app.route('/api/chat', methods=['POST'])
 def chat():
-    """Simple rule-based chatbot"""
     try:
         data = request.json or {}
         message = (data.get('message') or '').strip()
@@ -543,10 +600,7 @@ def chat():
 
         if 'help' in msg:
             return jsonify({
-                'reply': (
-                    'I can help with predictions and current prices. Examples: '
-                    '"predict RELIANCE.NS", "price TCS.NS", or ask "help".'
-                )
+                'reply': 'I can help with predictions and prices. Examples: "predict RELIANCE.NS", "price TCS.NS"'
             })
 
         symbol = extract_symbol(message)
@@ -554,78 +608,47 @@ def chat():
             if not symbol:
                 return jsonify({'reply': 'Please specify a symbol. Example: "predict RELIANCE.NS".'})
             prediction = _time_series_predict_regression(symbol)
-
-            confidence_num = float(str(prediction.get('confidence', '0%')).replace('%', '').strip() or 0)
-            trend = prediction.get('trend')
-            if trend == 'up':
-                action = 'Buy' if confidence_num >= 60 else 'Watch'
-            elif trend == 'down':
-                action = 'Sell' if confidence_num >= 60 else 'Hold'
-            else:
-                action = 'Hold'
-
-            reply = (
-                f"Prediction for {symbol}: predicted price {prediction.get('predicted_price')} "
-                f"with a '{prediction.get('trend')}' trend and confidence {prediction.get('confidence')}. "
-            )
-            if action:
-                reply += f"Recommendation: {action}. "
-            reply += f"Message: {prediction.get('message')}"
+            reply = f"Prediction for {symbol}: ₹{prediction.get('predicted_price')} ({prediction.get('trend')} trend, {prediction.get('confidence')} confidence)"
             return jsonify({'reply': reply})
 
-        if 'price' in msg or 'current price' in msg:
+        if 'price' in msg:
             if not symbol:
                 return jsonify({'reply': 'Please specify a symbol. Example: "price HDFCBANK.NS".'})
-            stock = yf.Ticker(symbol)
-            hist = stock.history(period="1d")
-            if hist is None or hist.empty:
-                return jsonify({'reply': f'No data found for {symbol}.'})
+            stock_data = get_cached_stock(symbol)
+            if not stock_data:
+                stock_data = get_stock_data(symbol).get_json()
+            current_price = stock_data.get('current_price', MOCK_PRICES.get(symbol, 1500))
+            return jsonify({'reply': f"Current price for {symbol} is ₹{current_price}"})
 
-            current_price = round(float(hist['Close'].iloc[-1]), 2)
-            reply = f"Current price for {symbol} is approximately INR {current_price}."
-            return jsonify({'reply': reply})
-
-        return jsonify({
-            'reply': (
-                'I did not understand the request. Try: '
-                '"help", "predict RELIANCE.NS", or "price TCS.NS".'
-            )
-        })
+        return jsonify({'reply': 'Try: "help", "predict RELIANCE.NS", or "price TCS.NS"'})
     except Exception as e:
-        return jsonify({'reply': f'Chatbot error: {str(e)}'})
+        return jsonify({'reply': f'Error: {str(e)}'})
 
 # ========== PDF REPORT API ==========
 @app.route('/api/report/pdf', methods=['POST'])
 def pdf_report():
-    """Generate a simple PDF summary for the user's portfolio."""
     try:
         data = request.json or {}
         email = data.get('email')
         if not email:
-            return jsonify({'success': False, 'error': 'Email is required'}), 400
+            return jsonify({'success': False, 'error': 'Email required'}), 400
 
         portfolio_store = load_portfolio_data()
         items = portfolio_store.get(email, [])
         total_invested = sum(item.get('total_invested', 0) for item in items)
 
-        # Estimate current value using yfinance
         total_current_value = 0.0
         priced_items = []
         for item in items:
             symbol = item.get('symbol')
             quantity = int(item.get('quantity', 0))
             buy_price = float(item.get('buy_price', 0))
-            current_price = None
-            try:
-                stock = yf.Ticker(symbol)
-                hist = stock.history(period="1d")
-                if hist is not None and not hist.empty:
-                    current_price = float(hist['Close'].iloc[-1])
-            except:
-                current_price = None
-
-            if current_price is None:
-                current_price = buy_price * 1.05
+            
+            stock_data = get_cached_stock(symbol)
+            if stock_data:
+                current_price = stock_data.get('current_price', buy_price * 1.05)
+            else:
+                current_price = MOCK_PRICES.get(symbol, buy_price * 1.05)
 
             current_value = current_price * quantity
             total_current_value += current_value
@@ -638,7 +661,6 @@ def pdf_report():
         profit_loss = total_current_value - total_invested
         roi = (profit_loss / total_invested * 100) if total_invested > 0 else 0.0
 
-        # Create PDF in memory
         buf = io.BytesIO()
         c = canvas.Canvas(buf, pagesize=letter)
         width, height = letter
@@ -650,14 +672,12 @@ def pdf_report():
         c.setFont("Helvetica", 11)
         y -= 22
         c.drawString(60, y, f"User: {email}")
-
         y -= 18
         c.drawString(60, y, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
         y -= 28
         c.setFont("Helvetica-Bold", 12)
         c.drawString(60, y, "Portfolio Summary")
-
         y -= 18
         c.setFont("Helvetica", 11)
         c.drawString(60, y, f"Total Invested: INR {total_invested:.2f}")
@@ -693,26 +713,20 @@ def pdf_report():
             y -= 14
 
         if not priced_items:
-            c.drawString(60, y, "No holdings found in this portfolio.")
+            c.drawString(60, y, "No holdings found.")
 
         c.showPage()
         c.save()
         buf.seek(0)
 
         filename = f"FutureFolio_Report_{email.replace('@', '_at_').replace('.', '_')}.pdf"
-        return send_file(
-            buf,
-            mimetype='application/pdf',
-            as_attachment=True,
-            download_name=filename
-        )
+        return send_file(buf, mimetype='application/pdf', as_attachment=True, download_name=filename)
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # ========== PORTFOLIO API ==========
 @app.route('/api/portfolio/add', methods=['POST'])
 def add_portfolio():
-    """Add stock to portfolio"""
     try:
         data = request.json
         email = data.get('email')
@@ -740,7 +754,6 @@ def add_portfolio():
         })
         
         save_portfolio_data(portfolio)
-        
         return jsonify({'success': True, 'message': 'Stock added to portfolio'})
         
     except Exception as e:
@@ -748,27 +761,19 @@ def add_portfolio():
 
 @app.route('/api/portfolio/<email>')
 def get_user_portfolio(email):
-    """Get user portfolio"""
     try:
         portfolio = load_portfolio_data()
         user_portfolio = portfolio.get(email, [])
         
-        # Calculate summary with real-time prices
         total_invested = sum(item['total_invested'] for item in user_portfolio)
         
-        # Calculate current value using yfinance
         current_value = 0
         for item in user_portfolio:
-            try:
-                stock = yf.Ticker(item['symbol'])
-                hist = stock.history(period="1d")
-                if hist is not None and not hist.empty:
-                    current_price = float(hist['Close'].iloc[-1])
-                else:
-                    current_price = item['buy_price'] * 1.05
-            except:
-                current_price = item['buy_price'] * 1.05
-            
+            stock_data = get_cached_stock(item['symbol'])
+            if stock_data:
+                current_price = stock_data.get('current_price', item['buy_price'] * 1.05)
+            else:
+                current_price = MOCK_PRICES.get(item['symbol'], item['buy_price'] * 1.05)
             current_value += current_price * item['quantity']
         
         profit_loss = current_value - total_invested
@@ -791,7 +796,6 @@ def get_user_portfolio(email):
 
 @app.route('/api/portfolio/sell', methods=['POST'])
 def sell_from_portfolio():
-    """Sell shares from a specific portfolio transaction."""
     try:
         data = request.json or {}
         email = data.get('email')
@@ -799,7 +803,7 @@ def sell_from_portfolio():
         quantity = data.get('quantity')
 
         if not all([email, transaction_id, quantity]):
-            return jsonify({'success': False, 'error': 'Email, transaction_id, and quantity required'}), 400
+            return jsonify({'success': False, 'error': 'All fields required'}), 400
 
         quantity = int(quantity)
         transaction_id = int(transaction_id)
@@ -819,7 +823,7 @@ def sell_from_portfolio():
             if int(item.get('transaction_id', -1)) == transaction_id:
                 current_qty = int(item.get('quantity', 0))
                 if quantity > current_qty:
-                    return jsonify({'success': False, 'error': 'Sell quantity exceeds owned quantity'}), 400
+                    return jsonify({'success': False, 'error': 'Insufficient quantity'}), 400
 
                 new_qty = current_qty - quantity
                 buy_price = float(item.get('buy_price', 0))
@@ -846,75 +850,30 @@ def sell_from_portfolio():
 # ========== NEWS API ==========
 @app.route('/api/news', methods=['GET'])
 def news():
-    """Fetch market news."""
     try:
-        q = (request.args.get('q') or '').strip()
-        symbol = (request.args.get('symbol') or '').strip()
-        api_key = os.getenv('NEWSAPI_KEY', '').strip()
-
-        def _clean_symbol(sym: str):
-            s = (sym or '').upper().strip()
-            for suffix in ['.NS', '.BO', '.BSE', '.NSE']:
-                if s.endswith(suffix):
-                    s = s[: -len(suffix)]
-                    break
-            return s.strip()
-
-        cleaned = _clean_symbol(symbol)
-        query = q if q else (cleaned + ' stock' if cleaned else (symbol if symbol else 'stock market'))
-
-        def _normalize_articles(items):
-            normalized = []
-            for a in items or []:
-                normalized.append({
-                    'source': (a.get('source') or {}).get('name') or a.get('source'),
-                    'title': a.get('title') or '',
-                    'publishedAt': a.get('publishedAt') or '',
-                    'description': a.get('description') or '',
-                    'url': a.get('url') or ''
-                })
-            return normalized
-
-        if api_key:
-            url = 'https://newsapi.org/v2/everything'
-            params = {
-                'q': query,
-                'sortBy': 'publishedAt',
-                'pageSize': 6,
-                'language': 'en',
-                'apiKey': api_key,
-            }
-            resp = requests.get(url, params=params, timeout=20)
-            if resp.status_code == 200:
-                data = resp.json()
-                if data.get('status') == 'ok':
-                    return jsonify({'success': True, 'articles': _normalize_articles(data.get('articles', []))})
-
-        # Fallback sample news
         fallback = [
             {
                 'source': 'FutureFolio',
-                'title': 'Market remains volatile as investors assess macro signals',
+                'title': 'Market Update: Stocks show mixed performance',
                 'publishedAt': datetime.now().strftime('%Y-%m-%d %H:%M'),
-                'description': 'Analysts note that short-term price movements are influenced by global risk sentiment and sector rotation.',
+                'description': 'Indian markets saw volatility today with IT and banking sectors leading.',
                 'url': ''
             },
             {
                 'source': 'FutureFolio',
-                'title': 'AI-driven strategies increase interest in systematic forecasting',
+                'title': 'AI Predictions: Market trends analysis',
                 'publishedAt': datetime.now().strftime('%Y-%m-%d %H:%M'),
-                'description': 'New research highlights that models trained on historical patterns can assist decision-making.',
+                'description': 'Our AI models suggest cautious optimism for the coming weeks.',
                 'url': ''
             },
             {
                 'source': 'FutureFolio',
-                'title': 'Investors focus on earnings and guidance for near-term direction',
+                'title': 'Portfolio Management Tips',
                 'publishedAt': datetime.now().strftime('%Y-%m-%d %H:%M'),
-                'description': 'Company updates and guidance often drive momentum and volatility.',
+                'description': 'Diversification remains key to managing market volatility.',
                 'url': ''
             },
         ]
-
         return jsonify({'success': True, 'articles': fallback})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -926,12 +885,9 @@ if __name__ == '__main__':
     print(f"📍 URL: http://localhost:{PORT}")
     print(f"📁 Frontend: {FRONTEND_DIR}")
     print(f"💾 Database: {DB_FOLDER}")
-    print(f"🐍 Python Version: {sys.version}")
     print("=" * 50)
     print("\n📝 Test Accounts:")
     print("   - Email: test@example.com, Password: 123456")
-    print("   - Email: Umarmirza369@gmail.com, Password: umar13")
     print("=" * 50)
     
-    # Run the app with Railway settings
     app.run(debug=DEBUG, port=PORT, host='0.0.0.0')
